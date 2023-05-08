@@ -1,7 +1,7 @@
 # booty
 <ins>Boo</ins>tstrap resampling w/ <ins>t</ins>orch at p<ins>y</ins>thon :shoe::fire::snake:
 
-This is clone-coded script of `scipy.stats.bootstrap` with some twists.
+This is a clone-coded script of `scipy.stats.bootstrap` with some twists.
 
 # Dependencies
 This code is tested with the version of `python` packages:
