@@ -1,3 +1,7 @@
+# TODO: docstring 추가
+# TODO: type hint 추가
+# TODO: device 정의 제대로
+
 import torch
 import numpy as np
 print('device:',
