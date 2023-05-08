@@ -13,7 +13,7 @@ class _Gaussian(torch.distributions.normal.Normal):
     def __init__(self): super().__init__(0, 1)
 
 
-# TODO: CUDA OOM 대비 buffer 기능 추가; dim 제외한 나머지 차원에 대해 분할
+# TODO: OOM/CUDA OOM 대비 buffer 기능 추가; dim 제외한 나머지 차원에 대해 분할
 class _Resampling:
     def __init__(self, data, statistics, dim=0, 
                  dim_kw=None, ensured_torch=False, **kwarg):
@@ -24,6 +24,7 @@ class _Resampling:
         data = data.permute(self.dim, 
                             *[i for i in range(len(data.shape)) if i != self.dim])
         resampled_samples = self._resampling_method(data, **kwarg)
+        data = self.data
         has_no_dim = False
         # not torch and not torch derivatives
         if self.statistics.__module__ != 'torch' and not self.ensured_torch:
@@ -35,6 +36,7 @@ class _Resampling:
             else:
                 self.dim_kw = dim_kw
             resampled_samples = np.asarray(resampled_samples.cpu())
+            data = np.asarray(data.detach().cpu())
         # torch or torch derivatives
         elif dim_kw is None and (self.statistics.__module__ == 'torch' 
                                  or self.ensured_torch):
@@ -43,26 +45,29 @@ class _Resampling:
             self.dim_kw = dim_kw
         if has_no_dim: 
             stat = self.statistics(resampled_samples)
-            theta_hat = self.statistics(self.data)
+            theta_hat = self.statistics(data)
         else: 
             stat = self.statistics(resampled_samples, **{self.dim_kw:0})
-            theta_hat = self.statistics(self.data, **{self.dim_kw:self.dim})
+            theta_hat = self.statistics(data, **{self.dim_kw:self.dim})
         resampled = torch.as_tensor(stat, device=device)
+        theta_hat = torch.as_tensor(theta_hat, device=device)
         dim_order = list(range(len(self.data.shape)))
         dim_order.insert(self.dim, dim_order.pop(0))
-        self.resampled = resampled.permute(dim_order)
-        self._theta_hat = theta_hat.unsqueeze(self.dim)  
+        self.resampled = resampled.permute(dim_order).cpu()
+        self._theta_hat = theta_hat.unsqueeze(self.dim)
 
     def _resampling_method(self, data, **kwarg):
         raise NotImplementedError(
             '_Resampling should be inherited by a class with defined method.')
- 
-    def get_error(self): return self.resampled.std(dim=self.dim, keepdim=True)
+
+    def get_samples(self): return self.resampled.to(device)
+
+    def get_error(self): return self.get_samples().std(dim=self.dim, keepdim=True)
 
     def get_quantile_ci(self, confidence=0.95):
         half_alpha = (1 - confidence) / 2
         q = torch.tensor([half_alpha, 1 - half_alpha], device=device)
-        return torch.quantile(self.resampled, q, dim=self.dim, keepdim=True
+        return torch.quantile(self.get_samples(), q, dim=self.dim, keepdim=True
                               ).transpose(0,
                                           self.dim - len(self.data.shape)
                                           ).squeeze()
@@ -103,13 +108,15 @@ class Bootstrap(_Resampling):
     def get_bca_ci(self, confidence=0.95):
         jk = Jackknife(self.data, self.statistics, self.dim, dim_kw=self.dim_kw,
                        ensured_torch=self.ensured_torch)
-        jk_bias = jk.resampled.mean(dim=self.dim, keepdim=True) - jk.resampled
+        jk_samples = jk.get_samples()
+        jk_bias = jk_samples.mean(dim=self.dim, keepdim=True) - jk_samples
         acceleration = (jk_bias ** 3).sum(dim=self.dim, keepdim=True) \
                      / 6 \
                      / ((jk_bias ** 2).sum(dim=self.dim, keepdim=True)) ** (3 / 2)
         gaussian = _Gaussian()
         half_alpha = torch.tensor((1 - confidence) / 2, device=device)
-        quantile = discrete_cdf(self.resampled, self._theta_hat, dim=self.dim)        
+        resampled = self.get_samples()
+        quantile = discrete_cdf(resampled, self._theta_hat, dim=self.dim)        
         z_0_hat = gaussian.icdf(quantile)
         z_half_alpha = gaussian.icdf(half_alpha)
         z_q_pos = z_0_hat + z_half_alpha
@@ -117,7 +124,7 @@ class Bootstrap(_Resampling):
         z = torch.cat([z_0_hat + z_q_pos / (1 - acceleration * z_q_pos),
                        z_0_hat + z_q_neg / (1 - acceleration * z_q_neg)], 
                        dim=self.dim)
-        return discrete_quantile(self.resampled, gaussian.cdf(z), dim=self.dim)
+        return discrete_quantile(resampled, gaussian.cdf(z), dim=self.dim)
 
 
 def is_integer(x):
