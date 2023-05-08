@@ -4,7 +4,7 @@
 This is a clone-coded script of `scipy.stats.bootstrap` with some twists.
 
 # Dependencies
-This code is tested with the version of `python` packages:
+This script was tested with the version of `python` packages:
 ```
 torch 2.0.0+cu117
 numpy 1.23.4
