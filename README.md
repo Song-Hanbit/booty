@@ -49,7 +49,7 @@ The `Bootstrap` class has following arguments.
 >
 >`dim_kw` is the keyword argument of dimension like `dim` for `torch` or `axis` for `numpy`. If it is `None`, it will be automatically assigned as `'dim'` for `torch` and `'axis'` for `numpy`.
 >
->`ensured_torch` is a boolean that says `statistics` is `torch` based method even though its `__module__` is not `torch`.
+>`ensured_torch` is a boolean that says `statistics` is `torch` based method even though its `__module__` is not `'torch'`.
 
 Therefore, you need to obtain some data as `torch.Tensor`.
 
