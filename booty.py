@@ -13,25 +13,16 @@ class _Gaussian(torch.distributions.normal.Normal):
 class _Resampling:
     def __init__(self, data, statistics, dim=0, 
                  dim_kw=None, ensured_torch=False, **kwarg):
-        data = self.__init_start(data, statistics, dim)
-        resampled_sample = self._resampling_method(data, **kwarg)
-        self.__init_get_resampled_stat(resampled_sample, dim_kw, ensured_torch)
-
-    def __init_start(self, data, statistics, dim):
         self.data = torch.as_tensor(data, device=device)
         self.dim = _rectify_dim(data, dim)
         self.statistics = statistics
-        return data.permute(self.dim, 
+        self.ensured_torch = ensured_torch
+        data = data.permute(self.dim, 
                             *[i for i in range(len(data.shape)) if i != self.dim])
-
-    def _resampling_method(self, data, **kwarg):
-        raise NotImplementedError(
-            '_Resampling should be inherited by a class with defined method.')
-
-    def __init_get_resampled_stat(self, resampled_sample, dim_kw, ensured_torch):
+        resampled_samples = self._resampling_method(data, **kwarg)
         has_no_dim = False
         # not torch and not torch derivatives
-        if self.statistics.__module__ != 'torch' and not ensured_torch:
+        if self.statistics.__module__ != 'torch' and not self.ensured_torch:
             if dim_kw is None:
                 if self.statistics.__module__ == 'numpy': 
                     self.dim_kw = 'axis'
@@ -39,25 +30,29 @@ class _Resampling:
                     has_no_dim = True
             else:
                 self.dim_kw = dim_kw
-            resampled_sample = np.asarray(resampled_sample.cpu())
+            resampled_samples = np.asarray(resampled_samples.cpu())
         # torch or torch derivatives
         elif dim_kw is None and (self.statistics.__module__ == 'torch' 
-                                 or ensured_torch):
+                                 or self.ensured_torch):
             self.dim_kw = 'dim'
         else: 
             self.dim_kw = dim_kw
         if has_no_dim: 
-            stat = self.statistics(resampled_sample)
+            stat = self.statistics(resampled_samples)
             theta_hat = self.statistics(self.data)
         else: 
-            stat = self.statistics(resampled_sample, **{self.dim_kw:0})
+            stat = self.statistics(resampled_samples, **{self.dim_kw:0})
             theta_hat = self.statistics(self.data, **{self.dim_kw:self.dim})
         resampled = torch.as_tensor(stat, device=device)
         dim_order = list(range(len(self.data.shape)))
         dim_order.insert(self.dim, dim_order.pop(0))
         self.resampled = resampled.permute(dim_order)
-        self._theta_hat = theta_hat.unsqueeze(self.dim)   
+        self._theta_hat = theta_hat.unsqueeze(self.dim)  
 
+    def _resampling_method(self, data, **kwarg):
+        raise NotImplementedError(
+            '_Resampling should be inherited by a class with defined method.')
+ 
     def get_error(self): return self.resampled.std(dim=self.dim, keepdim=True)
 
     def get_quantile_ci(self, confidence=0.95):
@@ -102,7 +97,8 @@ class Bootstrap(_Resampling):
         return data[sample_idxs] 
 
     def get_bca_ci(self, confidence=0.95):
-        jk = Jackknife(self.data, self.statistics, self.dim, dim_kw=self.dim_kw)
+        jk = Jackknife(self.data, self.statistics, self.dim, dim_kw=self.dim_kw,
+                       ensured_torch=self.ensured_torch)
         jk_bias = jk.resampled.mean(dim=self.dim, keepdim=True) - jk.resampled
         acceleration = (jk_bias ** 3).sum(dim=self.dim, keepdim=True) \
                      / 6 \
