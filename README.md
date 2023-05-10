@@ -25,13 +25,14 @@ The `Bootstrap` class has following arguments.
 >device: cuda
 >Init signature:
 >Bootstrap(
->    data,
->    statistics,
->    dim=0,
->    resample_size=None,
->    resample_times=10000,
->    dim_kw=None,
->    ensured_torch=False,
+>    data: torch.Tensor,
+>    statistics: <built-in function callable>,
+>    dim: int = 0,
+>    resample_size: Union[int, NoneType] = None,
+>    resample_times: int = 10000,
+>    buffer: int = 500000000,
+>    dim_kw: Union[str, NoneType] = None,
+>    ensured_torch: bool = False,
 >)
 >Docstring:      <no docstring>
 >File:           ~/booty/booty.py
@@ -48,6 +49,8 @@ The `Bootstrap` class has following arguments.
 >`resample_size` is the number of sample per resampled samples. If it is `None`, it will be automatically assigned as `data.shape[dim]`.
 >
 >`resample_times` is the number of resampling.
+>
+>`buffer` is throughput of resampling. One may tune this value to address the OOM(out-of-memory) problem.
 >
 >`dim_kw` is the keyword argument of dimension like `dim` for `torch` or `axis` for `numpy`. If it is `None`, it will be automatically assigned as `'dim'` for `torch` and `'axis'` for `numpy`.
 >
