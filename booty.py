@@ -100,7 +100,7 @@ class Bootstrap(_Resampling):
                          resample_size=resample_size, resample_times=resample_times)
 
     def _resampling_method(self, data, resample_size, resample_times):
-        if resample_size is None: resample_size = data.shape[self.dim]
+        if resample_size is None: resample_size = data.shape[0]
         sample_idxs = torch.randint(data.shape[0], 
                                     (resample_size, resample_times))
         return data[sample_idxs] 
