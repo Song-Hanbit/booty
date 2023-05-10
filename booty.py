@@ -104,7 +104,7 @@ class Jackknife(_Resampling):
 
 class Bootstrap(_Resampling):
     def __init__(self, data:torch.Tensor, statistics:callable, dim:int=0, 
-                 resample_size:Union[int, None]=None, resample_times:int=100000, 
+                 resample_size:Union[int, None]=None, resample_times:int=10000, 
                  buffer:int=int(5e8), dim_kw:Union[str, None]=None, 
                  ensured_torch:bool=False):
         super().__init__(data, statistics, dim=dim, dim_kw=dim_kw, 
